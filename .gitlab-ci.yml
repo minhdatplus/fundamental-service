@@ -1,0 +1,64 @@
+variables:
+  sshkey: "SSH_KEY"
+  domain: "fundamental"
+
+stages:
+  - setenv
+  - request
+  - deploy
+  - notify
+
+before_script:
+  - date >> /tmp/gitlabci.log
+  - echo "DEPLOY INFO:" >> /tmp/gitlabci.log
+
+
+setenv to historical-service on production:
+  environment: production
+  stage: setenv
+  tags:
+    - historical-service
+  only:
+    - master
+  script:
+    - mkdir /var/www/html/project/fundamental
+    - sudo chown -R gitlab-runner.gitlab-runner /var/www/html/project/fundamental
+  allow_failure: true
+
+request deploy to production:
+  environment: production
+  stage: request
+  tags:
+    - historical-service
+  only:
+    - master
+  script:
+    - /usr/bin/python /opt/ansible/scripts/SendSlack.py "YOU NEED SUMMIT FOR DEPLOY TO PRODUCTION!"
+
+
+deploy to historical-service on production:
+  environment: production
+  stage: deploy
+  tags:
+    - historical-service
+  only:
+    - master
+  script:
+    - cp -r ./* /var/www/html/project/fundamental
+    - sudo chown -R gitlab-runner.gitlab-runner /var/www/html/project/fundamental
+    - sudo docker build . -t mdplus/fundamental
+    - sudo docker restart nostalgic_murdock
+    - /usr/bin/python /opt/ansible/scripts/SendSlack.py "Deploy fundamental to PRODUCTION! Server historical-service! Success!"
+  
+  allow_failure: false
+
+notify deploy to production:
+  environment: production
+  stage: notify
+  tags:
+    - historical-service
+  only:
+    - master
+  script:
+    - /usr/bin/python /opt/ansible/scripts/SendSlack.py "FAIL!!! Deploy fundamental to PRODUCTION! Failed!"
+  when: on_failure
